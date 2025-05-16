@@ -1,0 +1,16 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build OpenGL App",
+            "type": "shell",
+            "command": "make", // Use the Makefile to build the project
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": ["$gcc"],
+            "detail": "Build the OpenGL application using the Makefile."
+        }
+    ]
+}
