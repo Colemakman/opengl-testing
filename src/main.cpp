@@ -37,6 +37,8 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow* window);
 void monitorUpDownArrowKeys(GLFWwindow* window, float* mixFactor);
 unsigned int loadTexture(const char* path, GLenum format);
+glm::mat4 getViewMatrix();
+// Function Definitions
 
 int main() {
     // Initialize GLFW and create a window
@@ -150,8 +152,7 @@ int main() {
         ourShader.use();
         ourShader.setFloat("mixFactor", mixFactor);
 
-        glm::mat4 view = glm::mat4(1.0f);
-        view = glm::translate(view, glm::vec3(0.0f, 0.0f, -3.0f));
+        glm::mat4 view = getViewMatrix();
         ourShader.setMat4("view", view);
 
         glm::mat4 projection;
@@ -164,7 +165,7 @@ int main() {
         glBindTexture(GL_TEXTURE_2D, texture2);
 
         glBindVertexArray(VAO);
-        for (unsigned int i = 0; i < 25; i++) {
+        for (unsigned int i = 0; i < 9; i++) {
             glm::mat4 model = glm::mat4(1.0f);
             model = glm::translate(model, cubePositions[i]);
             float angle = 20.0f * i;
@@ -279,4 +280,16 @@ unsigned int loadTexture(const char* path, GLenum format) {
     stbi_image_free(data);
 
     return texture;
+}
+
+glm::mat4 getViewMatrix() {
+    float radius = 10.0f;
+    float camX = sin(glfwGetTime()) * radius;
+    float camZ = cos(glfwGetTime()) * radius;
+
+    glm::mat4 view;
+    view = glm::lookAt(glm::vec3(camX, 0.0f, camZ), // Camera position
+                    glm::vec3(0.0f, 0.0f, 0.0f), // Look at the origin
+                    glm::vec3(0.0f, 1.0f, 0.0f)); // Up vector
+    return view;
 }
