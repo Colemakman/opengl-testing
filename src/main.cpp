@@ -21,10 +21,9 @@
 // Constants
 const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
-const float MIX_FACTOR_INCREMENT = 0.001f;
 
 // Global Variables
-float mixFactor = 0.2f;
+unsigned int GRID_SIZE = 5 * 5;
 ImVec2 imguiWindowPos(SCR_WIDTH - 310, 10);
 ImVec2 imguiWindowSize(300, 100);
 
@@ -35,7 +34,7 @@ void initGLAD();
 void initImGui(GLFWwindow* window);
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow* window);
-void monitorUpDownArrowKeys(GLFWwindow* window, float* mixFactor);
+void monitorUpDownArrowKeys(GLFWwindow* window, unsigned int* gridSize);
 unsigned int loadTexture(const char* path, GLenum format);
 glm::mat4 getViewMatrix();
 // Function Definitions
@@ -125,24 +124,11 @@ int main() {
     ourShader.setInt("texture1", 0);
     ourShader.setInt("texture2", 1);
 
-    glm::vec3 cubePositions[] = {
-        glm::vec3( 0.0f,  0.0f,  0.0f), 
-        glm::vec3( 2.0f,  5.0f, -15.0f), 
-        glm::vec3(-1.5f, -2.2f, -2.5f),  
-        glm::vec3(-3.8f, -2.0f, -12.3f),  
-        glm::vec3( 2.4f, -0.4f, -3.5f),  
-        glm::vec3(-1.7f,  3.0f, -7.5f),  
-        glm::vec3( 1.3f, -2.0f, -2.5f),  
-        glm::vec3( 1.5f,  2.0f, -2.5f), 
-        glm::vec3( 1.5f,  0.2f, -1.5f), 
-        glm::vec3(-1.3f,  1.0f, -1.5f)  
-    };
-
     // Render loop
     while (!glfwWindowShouldClose(window)) {
         // Input handling
         processInput(window);
-        monitorUpDownArrowKeys(window, &mixFactor);
+        monitorUpDownArrowKeys(window, &GRID_SIZE);
 
         // Clear screen
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
@@ -150,13 +136,12 @@ int main() {
 
         // Render objects
         ourShader.use();
-        ourShader.setFloat("mixFactor", mixFactor);
 
         glm::mat4 view = getViewMatrix();
         ourShader.setMat4("view", view);
 
         glm::mat4 projection;
-        projection = glm::perspective(glm::radians(45.0f), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+        projection = glm::perspective(glm::radians(45.0f), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 10000.0f);
         ourShader.setMat4("projection", projection);
 
         glActiveTexture(GL_TEXTURE0);
@@ -165,9 +150,23 @@ int main() {
         glBindTexture(GL_TEXTURE_2D, texture2);
 
         glBindVertexArray(VAO);
-        for (unsigned int i = 0; i < 9; i++) {
+        for (unsigned int i = 0; i < GRID_SIZE; i++) {
+            unsigned int gridDim = static_cast<unsigned int>(sqrt(GRID_SIZE));
+            unsigned int row = i / gridDim;
+            unsigned int column = i % gridDim;
+
+            // Calculate the offset to center the grid at the origin
+            float offset = (gridDim - 1) * 2.0f / 2.0f;
+
             glm::mat4 model = glm::mat4(1.0f);
-            model = glm::translate(model, cubePositions[i]);
+            model = glm::translate(
+                model,
+                glm::vec3(
+                    (float)row * 2.0f - offset,
+                    (float)column * 2.0f - offset,
+                    0.0f
+                )
+            );
             float angle = 20.0f * i;
             model = glm::rotate(model, (float)glfwGetTime() * glm::radians(angle), glm::vec3(1.0f, 0.3f, 0.5f));
             ourShader.setMat4("model", model);
@@ -187,8 +186,8 @@ int main() {
         ImGui::SetNextWindowSize(imguiWindowSize, ImGuiCond_Always);
         ImGui::Begin("Details", NULL, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse);
         ImGui::Text("glfwTime: %.3f", (float)glfwGetTime());
-        ImGui::Text("mixFactor: %.3f", mixFactor);
-        ImGui::Text("Press UP/DOWN to change mixFactor");
+        ImGui::Text("Grid Size: %d", GRID_SIZE);
+        ImGui::Text("Press UP/DOWN to change grid size");
         ImGui::End();
 
         // Render ImGui
@@ -242,8 +241,20 @@ void initImGui(GLFWwindow* window) {
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
+
+    // Scale ImGui window size and position based on GLFW window size
+    float windowWidth = static_cast<float>(width);
+    float windowHeight = static_cast<float>(height);
+
+    // Set ImGui window to be 1/3 of the window width and 1/6 of the window height, with minimums
+    imguiWindowSize = ImVec2(
+        std::max(windowWidth / 3.0f, 250.0f),
+        std::max(windowHeight / 6.0f, 80.0f)
+    );
+
+    // Margin from the edge
     const float margin = 10.0f;
-    imguiWindowPos = ImVec2(width - imguiWindowSize.x - margin, margin);
+    imguiWindowPos = ImVec2(windowWidth - imguiWindowSize.x - margin, margin);
 }
 
 void processInput(GLFWwindow* window) {
@@ -251,11 +262,26 @@ void processInput(GLFWwindow* window) {
         glfwSetWindowShouldClose(window, true);
 }
 
-void monitorUpDownArrowKeys(GLFWwindow* window, float* mixFactor) {
-    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS && *mixFactor < 1.0f)
-        *mixFactor += MIX_FACTOR_INCREMENT;
-    if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS && *mixFactor > 0.0f)
-        *mixFactor -= MIX_FACTOR_INCREMENT;
+void monitorUpDownArrowKeys(GLFWwindow* window, unsigned int* value) {
+    static bool upPressedLastFrame = false;
+    static bool downPressedLastFrame = false;
+
+    unsigned int root = sqrt(*value);
+
+    bool upPressed = glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS;
+    bool downPressed = glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS;
+
+    // Increase only on UP key release
+    if (!upPressed && upPressedLastFrame) {
+        *value = (root + 1) * (root + 1);
+    }
+    // Decrease only on DOWN key release
+    if (!downPressed && downPressedLastFrame && *value > 0) {
+        *value = (root - 1) * (root - 1);
+    }
+
+    upPressedLastFrame = upPressed;
+    downPressedLastFrame = downPressed;
 }
 
 unsigned int loadTexture(const char* path, GLenum format) {
@@ -283,13 +309,16 @@ unsigned int loadTexture(const char* path, GLenum format) {
 }
 
 glm::mat4 getViewMatrix() {
-    float radius = 10.0f;
+    unsigned int gridDim = static_cast<unsigned int>(sqrt(GRID_SIZE));
+
+    float radius = gridDim * 2.0f * 1.5f;
     float camX = sin(glfwGetTime()) * radius;
     float camZ = cos(glfwGetTime()) * radius;
 
-    glm::mat4 view;
-    view = glm::lookAt(glm::vec3(camX, 0.0f, camZ), // Camera position
-                    glm::vec3(0.0f, 0.0f, 0.0f), // Look at the origin
-                    glm::vec3(0.0f, 1.0f, 0.0f)); // Up vector
+    glm::mat4 view = glm::lookAt(
+        glm::vec3(camX, 0.0f, camZ),           // Camera position
+        glm::vec3(0.0f, 0.0f, 0.0f),           // Look at the origin
+        glm::vec3(0.0f, 1.0f, 0.0f));          // Up vector
     return view;
 }
+    
